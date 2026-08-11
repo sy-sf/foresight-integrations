@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from lib.client import HindsightClient
+from lib.client import ForesightClient
 from lib.config import debug_log, load_config
 from lib.connection import get_api_url
 from lib.content import format_solution_recall_protocol
@@ -46,9 +46,9 @@ def main():
 
     try:
         api_url = get_api_url(config, debug_fn=_dbg, allow_daemon_start=False)
-        HindsightClient(
+        ForesightClient(
             api_url,
-            config.get("hindsightApiKey"),
+            config.get("foresightApiKey"),
             request_timeout_override=config.get("requestTimeoutSeconds"),
         )
         debug_log(config, f"Foresight API configured at {api_url}")

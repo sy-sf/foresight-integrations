@@ -11,14 +11,13 @@ formatMemories.
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any
 
 from lib.solution_candidates import normalize_solution_title
 
 SOLUTION_RECALL_PROTOCOL_LINES = [
     "Foresight Solution 使用协议：",
-    "- 将 <hindsight_solution_candidates> 视为类似 Skill 描述的简短、可渐进打开的方法论入口。",
-    "- 每次处理用户请求时，在调用 Skill、Bash、TaskCreate 或其他行动工具前，先扫描 <hindsight_solution_candidates>。",
+    "- 将 <foresight_solution_candidates> 视为类似 Skill 描述的简短、可渐进打开的方法论入口。",
+    "- 每次处理用户请求时，在调用 Skill、Bash、TaskCreate 或其他行动工具前，先扫描 <foresight_solution_candidates>。",
     "- 候选只展示 title 和 description，不包含完整流程、适用边界或失败模式。",
     "- 不要只根据候选摘要或 solution-like facts 执行完整工作流。",
     '- 如果候选可能对当前任务有帮助，优先调用其 open 行中的 agent_knowledge_open_solution(title="...") 查看详情；打开只读取知识，不会执行实际操作。',
@@ -31,7 +30,7 @@ SOLUTION_RECALL_PROTOCOL_LINES = [
 def format_solution_recall_protocol() -> str:
     """Return the fixed solution loading protocol for session-level context."""
     return "\n".join(
-        ["<hindsight_solution_protocol>", *SOLUTION_RECALL_PROTOCOL_LINES, "</hindsight_solution_protocol>"]
+        ["<foresight_solution_protocol>", *SOLUTION_RECALL_PROTOCOL_LINES, "</foresight_solution_protocol>"]
     )
 
 
@@ -50,7 +49,7 @@ def strip_channel_envelope(content: str) -> str:
 
     This is the Claude Code equivalent of Openclaw's stripMetadataEnvelopes().
     Extracts the inner text, preserving the actual user message while removing
-    transport metadata that Hindsight doesn't need.
+    transport metadata that Foresight doesn't need.
     """
     # Match <channel ...>content</channel> — extract inner text
     match = re.search(r"<channel\b[^>]*>([\s\S]*?)</channel>", content)
@@ -60,16 +59,16 @@ def strip_channel_envelope(content: str) -> str:
 
 
 def strip_memory_tags(content: str) -> str:
-    """Remove Hindsight recall-injected blocks.
+    """Remove Foresight recall-injected blocks.
 
     Prevents retain feedback loop — these were injected during recall and
     should not be re-stored.
 
     Port of: stripMemoryTags() in index.js
     """
-    content = re.sub(r"<hindsight_memories>[\s\S]*?</hindsight_memories>", "", content)
-    content = re.sub(r"<hindsight_solution_protocol>[\s\S]*?</hindsight_solution_protocol>", "", content)
-    content = re.sub(r"<hindsight_solution_candidates>[\s\S]*?</hindsight_solution_candidates>", "", content)
+    content = re.sub(r"<foresight_memories>[\s\S]*?</foresight_memories>", "", content)
+    content = re.sub(r"<foresight_solution_protocol>[\s\S]*?</foresight_solution_protocol>", "", content)
+    content = re.sub(r"<foresight_solution_candidates>[\s\S]*?</foresight_solution_candidates>", "", content)
     content = re.sub(r"<relevant_memories>[\s\S]*?</relevant_memories>", "", content)
     return content
 
@@ -272,7 +271,7 @@ def format_solution_candidates(solutions: list[object]) -> str:
         return ""
 
     header = [
-        "<hindsight_solution_candidates>",
+        "<foresight_solution_candidates>",
         *SOLUTION_RECALL_PROTOCOL_LINES,
         "",
         "候选 Solution：",
@@ -300,7 +299,7 @@ def format_solution_candidates(solutions: list[object]) -> str:
         )
     if not candidate_lines:
         return ""
-    return "\n".join(header + candidate_lines + ["</hindsight_solution_candidates>"])
+    return "\n".join(header + candidate_lines + ["</foresight_solution_candidates>"])
 
 
 def format_recall_context(
@@ -317,7 +316,7 @@ def format_recall_context(
             body_parts.append(preamble)
         body_parts.append(f"当前时间 - {current_time}")
         body_parts.append(memories_formatted)
-        sections.append("<hindsight_memories>\n" + "\n\n".join(body_parts) + "\n</hindsight_memories>")
+        sections.append("<foresight_memories>\n" + "\n\n".join(body_parts) + "\n</foresight_memories>")
     if solution_candidates_formatted:
         sections.append(solution_candidates_formatted)
     return "\n\n".join(sections)
@@ -378,7 +377,7 @@ def _extract_message_blocks(content, role: str = "") -> list:
             else:
                 name = block.get("name", "unknown")
                 inp = block.get("input", {})
-                # Skip Hindsight MCP tools to avoid feedback loops
+                # Skip Foresight MCP tools to avoid feedback loops
                 if name.startswith("mcp__") and _OPERATIONAL_TOOL_PATTERN.search(name.split("__")[-1]):
                     continue
                 blocks.append({"type": "tool_use", "name": name, "input": inp})
@@ -535,7 +534,7 @@ def _is_channel_message_tool(block: dict) -> bool:
     This catches any channel plugin (Telegram, Slack, Discord, Matrix,
     future channels) without hardcoding tool names. Built-in tools (Bash,
     Read, Write) don't start with mcp__. MCP tools for non-messaging
-    purposes (hindsight recall, search) are excluded by pattern and by
+    purposes (Foresight recall, search) are excluded by pattern and by
     lacking text/body fields.
     """
     name = block.get("name", "")

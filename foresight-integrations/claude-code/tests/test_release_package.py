@@ -46,11 +46,12 @@ def test_release_registers_foresight_mcp_server() -> None:
     assert (PLUGIN_DIR / "requirements.txt").read_text(encoding="utf-8").strip() == "mcp==1.25.0"
 
 
-def test_default_settings_do_not_enable_public_hindsight_daemon() -> None:
-    settings = json.loads((PLUGIN_DIR / "settings.json").read_text(encoding="utf-8"))
+def test_defaults_have_one_source_and_require_external_foresight() -> None:
+    from lib.config import DEFAULTS
 
-    assert settings["hindsightApiUrl"] == ""
-    assert settings["hindsightApiKey"] is None
+    assert not (PLUGIN_DIR / "settings.json").exists()
+    assert DEFAULTS["foresightApiUrl"] is None
+    assert DEFAULTS["foresightApiKey"] is None
     for removed_key in (
         "apiPort",
         "daemonIdleTimeout",
@@ -59,8 +60,39 @@ def test_default_settings_do_not_enable_public_hindsight_daemon() -> None:
         "llmProvider",
         "llmModel",
         "llmApiKeyEnv",
+        "retainMode",
+        "retainEveryNTurns",
+        "retainOverlapTurns",
+        "retainRoles",
+        "retainToolCalls",
+        "retainContext",
+        "retainTags",
+        "retainMetadata",
     ):
-        assert removed_key not in settings
+        assert removed_key not in DEFAULTS
+
+
+def test_config_loads_foresight_user_path_and_environment(monkeypatch, tmp_path) -> None:
+    from lib.config import load_config
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    config_dir = tmp_path / ".foresight"
+    config_dir.mkdir()
+    (config_dir / "claude-code.json").write_text(
+        json.dumps(
+            {
+                "foresightApiUrl": "https://user.example.com",
+                "foresightApiKey": "hsk_user-key",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FORESIGHT_API_URL", "https://env.example.com")
+
+    config = load_config()
+
+    assert config["foresightApiUrl"] == "https://env.example.com"
+    assert config["foresightApiKey"] == "hsk_user-key"
 
 
 def test_connection_requires_deployed_foresight_api() -> None:
@@ -70,21 +102,21 @@ def test_connection_requires_deployed_foresight_api() -> None:
         get_api_url({})
 
     with pytest.raises(RuntimeError, match=r"valid http\(s\) URL"):
-        get_api_url({"hindsightApiUrl": "file:///tmp/foresight"})
+        get_api_url({"foresightApiUrl": "file:///tmp/foresight"})
 
-    assert get_api_url({"hindsightApiUrl": "https://foresight.example.com/"}) == (
+    assert get_api_url({"foresightApiUrl": "https://foresight.example.com/"}) == (
         "https://foresight.example.com"
     )
 
 
 def test_client_requires_personal_hsk_api_key() -> None:
-    from lib.client import HindsightClient
+    from lib.client import ForesightClient
 
     with pytest.raises(ValueError, match="API key is required"):
-        HindsightClient("https://foresight.example.com")
+        ForesightClient("https://foresight.example.com")
 
     with pytest.raises(ValueError, match="hsk_ API key"):
-        HindsightClient("https://foresight.example.com", "legacy-token")
+        ForesightClient("https://foresight.example.com", "legacy-token")
 
-    client = HindsightClient("https://foresight.example.com", "hsk_test-key")
+    client = ForesightClient("https://foresight.example.com", "hsk_test-key")
     assert client._headers()["Authorization"] == "Bearer hsk_test-key"

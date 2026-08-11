@@ -7,19 +7,18 @@ def get_api_url(config: dict, debug_fn=None, allow_daemon_start: bool = False) -
     """Return the configured Foresight API URL.
 
     Foresight's personal knowledge and solution APIs are served by the deployed
-    Foresight backend. The public ``hindsight-embed`` package does not expose
-    these APIs, so this plugin deliberately does not auto-start it.
+    Foresight backend, so this plugin does not start a local service.
 
     ``allow_daemon_start`` is retained in the signature for compatibility with
     existing hook callers; it has no effect.
     """
     del allow_daemon_start
 
-    api_url = str(config.get("hindsightApiUrl") or "").strip().rstrip("/")
+    api_url = str(config.get("foresightApiUrl") or "").strip().rstrip("/")
     if not api_url:
         raise RuntimeError(
-            "Foresight API URL is required. Set hindsightApiUrl in "
-            "~/.hindsight/claude-code.json or set HINDSIGHT_API_URL."
+            "Foresight API URL is required. Set foresightApiUrl in "
+            "~/.foresight/claude-code.json or set FORESIGHT_API_URL."
         )
 
     parsed = urlparse(api_url)

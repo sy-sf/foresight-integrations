@@ -18,7 +18,7 @@ def test_session_start_injects_solution_protocol(monkeypatch) -> None:
             "autoRetain": True,
             "enableKnowledgeTools": True,
             "debug": False,
-            "hindsightApiKey": "hsk_test-key",
+            "foresightApiKey": "hsk_test-key",
         },
     )
     monkeypatch.setattr(session_start, "get_api_url", lambda *args, **kwargs: "http://api.test")
@@ -31,7 +31,7 @@ def test_session_start_injects_solution_protocol(monkeypatch) -> None:
     output = json.loads(stdout.getvalue())
     context = output["hookSpecificOutput"]["additionalContext"]
     assert output["hookSpecificOutput"]["hookEventName"] == "SessionStart"
-    assert "<hindsight_solution_protocol>" in context
+    assert "<foresight_solution_protocol>" in context
     assert "在调用 Skill、Bash、TaskCreate 或其他行动工具前" in context
     assert "不要只根据候选摘要或 solution-like facts 执行完整工作流" in context
 
@@ -45,7 +45,7 @@ def test_session_start_skips_protocol_when_tools_disabled(monkeypatch) -> None:
             "autoRetain": True,
             "enableKnowledgeTools": False,
             "debug": False,
-            "hindsightApiKey": "hsk_test-key",
+            "foresightApiKey": "hsk_test-key",
         },
     )
     monkeypatch.setattr(session_start, "get_api_url", lambda *args, **kwargs: "http://api.test")

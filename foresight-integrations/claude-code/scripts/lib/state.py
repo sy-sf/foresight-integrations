@@ -114,8 +114,8 @@ def _locked_read_modify_write(state_name: str, lock_name: str, modify_fn):
 def mark_session_retained(session_id: str) -> None:
     """Record the most recent successful retain for diagnostics.
 
-    SessionEnd intentionally sends another idempotent snapshot with
-    ``process_now``. Entries are pruned after seven days.
+    SessionEnd may send another idempotent final snapshot. Entries are pruned
+    after seven days.
     """
     import time as _time
 

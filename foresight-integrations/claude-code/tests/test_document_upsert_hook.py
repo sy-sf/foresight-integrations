@@ -29,10 +29,6 @@ def _write_transcript(tmp_path: Path) -> Path:
 def _document_config(**overrides):
     config = {
         "autoRetain": True,
-        "retainMode": "full-session",
-        "retainEveryNTurns": 1,
-        "retainTags": ["{session_id}"],
-        "retainMetadata": {},
         "requestTimeoutSeconds": 10,
     }
     config.update(overrides)
@@ -57,7 +53,7 @@ def test_retain_submits_full_session_document_snapshot(monkeypatch, tmp_path) ->
     monkeypatch.setattr(retain, "get_api_url", lambda *args, **kwargs: "http://api.test")
     monkeypatch.setattr(retain, "derive_bank_id", lambda *args, **kwargs: "bank-a")
     monkeypatch.setattr(retain, "ensure_bank_mission", lambda *args, **kwargs: None)
-    monkeypatch.setattr(retain, "HindsightClient", FakeClient)
+    monkeypatch.setattr(retain, "ForesightClient", FakeClient)
     monkeypatch.setattr(retain, "track_retention", lambda session_id, count: (0, False))
     monkeypatch.setattr(retain, "read_state", lambda name, default=None: default)
     monkeypatch.setattr(retain, "mark_session_retained", lambda session_id: marked.append(session_id))
@@ -76,12 +72,49 @@ def test_retain_submits_full_session_document_snapshot(monkeypatch, tmp_path) ->
     assert json.loads(captured["content"])[0]["content"] == "first request"
     assert captured["metadata"]["message_count"] == "2"
     assert "retained_at" not in captured["metadata"]
-    assert captured["tags"] == ["session-1"]
+    assert captured["tags"] is None
     assert captured["process_now"] is False
     assert marked == ["session-1"]
 
 
-def test_forced_retain_processes_now_and_clears_opened_solution_state(monkeypatch, tmp_path) -> None:
+def test_every_stop_upserts_latest_snapshot_without_forcing_processing(monkeypatch, tmp_path) -> None:
+    transcript_path = _write_transcript(tmp_path)
+    calls = []
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def upsert_document(self, **kwargs):
+            calls.append(kwargs)
+            return {"processing_status": "scheduled"}
+
+    monkeypatch.setattr(retain, "load_config", lambda: _document_config())
+    monkeypatch.setattr(retain, "debug_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(retain, "get_api_url", lambda *args, **kwargs: "http://api.test")
+    monkeypatch.setattr(retain, "derive_bank_id", lambda *args, **kwargs: "bank-a")
+    monkeypatch.setattr(retain, "ensure_bank_mission", lambda *args, **kwargs: None)
+    monkeypatch.setattr(retain, "ForesightClient", FakeClient)
+    monkeypatch.setattr(retain, "track_retention", lambda session_id, count: (0, False))
+    monkeypatch.setattr(retain, "read_state", lambda name, default=None: default)
+    monkeypatch.setattr(retain, "mark_session_retained", lambda session_id: None)
+
+    hook_input = {"session_id": "session-1", "transcript_path": str(transcript_path)}
+    retain.run_retain(hook_input)
+
+    with transcript_path.open("a", encoding="utf-8") as transcript:
+        transcript.write("\n" + json.dumps({"role": "user", "content": "second request"}))
+        transcript.write("\n" + json.dumps({"role": "assistant", "content": "second answer"}))
+    retain.run_retain(hook_input)
+
+    assert len(calls) == 2
+    assert [call["document_id"] for call in calls] == ["session-1", "session-1"]
+    assert [call["process_now"] for call in calls] == [False, False]
+    assert len(json.loads(calls[0]["content"])) == 2
+    assert len(json.loads(calls[1]["content"])) == 4
+
+
+def test_final_retain_keeps_idle_processing_and_clears_opened_solution_state(monkeypatch, tmp_path) -> None:
     transcript_path = _write_transcript(tmp_path)
     captured = {}
     marked = []
@@ -106,7 +139,7 @@ def test_forced_retain_processes_now_and_clears_opened_solution_state(monkeypatc
     monkeypatch.setattr(retain, "get_api_url", lambda *args, **kwargs: "http://api.test")
     monkeypatch.setattr(retain, "derive_bank_id", lambda *args, **kwargs: "bank-a")
     monkeypatch.setattr(retain, "ensure_bank_mission", lambda *args, **kwargs: None)
-    monkeypatch.setattr(retain, "HindsightClient", FakeClient)
+    monkeypatch.setattr(retain, "ForesightClient", FakeClient)
     monkeypatch.setattr(retain, "track_retention", lambda session_id, count: (0, False))
     monkeypatch.setattr(retain, "read_state", lambda name, default=None: states.get(name, default))
     monkeypatch.setattr(retain, "write_state", lambda name, state: writes.__setitem__(name, state))
@@ -118,17 +151,17 @@ def test_forced_retain_processes_now_and_clears_opened_solution_state(monkeypatc
             "transcript_path": str(transcript_path),
             "cwd": str(tmp_path),
         },
-        force=True,
+        final=True,
     )
 
     opened = json.loads(captured["metadata"]["hindsight_opened_solutions_json"])
     assert opened == [opened_record]
-    assert captured["process_now"] is True
+    assert captured["process_now"] is False
     assert marked == ["session-1"]
     assert writes[OPENED_SOLUTIONS_STATE] == {"sessions": {}}
 
 
-def test_chunked_trigger_still_upserts_full_stable_compaction_snapshot(monkeypatch, tmp_path) -> None:
+def test_retain_upserts_full_stable_compaction_snapshot(monkeypatch, tmp_path) -> None:
     transcript_path = tmp_path / "chunked.jsonl"
     messages = [
         {"role": role, "content": f"message-{index}"}
@@ -148,16 +181,12 @@ def test_chunked_trigger_still_upserts_full_stable_compaction_snapshot(monkeypat
             captured.update(kwargs)
             return {"processing_status": "scheduled"}
 
-    monkeypatch.setattr(
-        retain,
-        "load_config",
-        lambda: _document_config(retainMode="chunked", retainEveryNTurns=2, retainOverlapTurns=0),
-    )
+    monkeypatch.setattr(retain, "load_config", lambda: _document_config())
     monkeypatch.setattr(retain, "debug_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(retain, "get_api_url", lambda *args, **kwargs: "http://api.test")
     monkeypatch.setattr(retain, "derive_bank_id", lambda *args, **kwargs: "bank-a")
     monkeypatch.setattr(retain, "ensure_bank_mission", lambda *args, **kwargs: None)
-    monkeypatch.setattr(retain, "HindsightClient", FakeClient)
+    monkeypatch.setattr(retain, "ForesightClient", FakeClient)
     monkeypatch.setattr(retain, "track_retention", lambda session_id, count: (3, False))
     monkeypatch.setattr(retain, "read_state", lambda name, default=None: default)
     monkeypatch.setattr(retain, "mark_session_retained", lambda session_id: None)
@@ -176,13 +205,13 @@ def test_chunked_trigger_still_upserts_full_stable_compaction_snapshot(monkeypat
     assert captured["metadata"]["message_count"] == "8"
 
 
-def test_session_end_always_forces_final_document_upsert(monkeypatch) -> None:
+def test_session_end_submits_final_document_without_forcing_processing(monkeypatch) -> None:
     calls = []
-    config = {"autoRetain": True, "retainMode": "full-session"}
+    config = {"autoRetain": True}
 
     monkeypatch.setattr(session_end, "load_config", lambda: config)
     monkeypatch.setattr(session_end, "debug_log", lambda *args, **kwargs: None)
-    monkeypatch.setattr(retain, "run_retain", lambda hook_input, force=False: calls.append((hook_input, force)))
+    monkeypatch.setattr(retain, "run_retain", lambda hook_input, final=False: calls.append((hook_input, final)))
     monkeypatch.setattr(
         sys,
         "stdin",

@@ -11,7 +11,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 import recall
 import retain
-from lib.client import HindsightClient
+from lib.client import ForesightClient
 from lib.solution_candidates import OPENED_SOLUTIONS_STATE, SOLUTION_CANDIDATES_STATE
 
 
@@ -63,7 +63,7 @@ def test_recall_hook_formats_solution_candidates_without_approach(monkeypatch) -
     monkeypatch.setattr(recall, "get_api_url", lambda *args, **kwargs: "http://api.test")
     monkeypatch.setattr(recall, "derive_bank_id", lambda *args, **kwargs: "claude_code")
     monkeypatch.setattr(recall, "ensure_bank_mission", lambda *args, **kwargs: None)
-    monkeypatch.setattr(recall, "HindsightClient", FakeClient)
+    monkeypatch.setattr(recall, "ForesightClient", FakeClient)
     monkeypatch.setattr(recall, "write_state", lambda name, state: captured_states.__setitem__(name, state))
 
     stdout = io.StringIO()
@@ -91,7 +91,7 @@ def test_recall_hook_formats_solution_candidates_without_approach(monkeypatch) -
         }
     ]
     assert "Use cost for spend." in context
-    assert "<hindsight_solution_candidates>" in context
+    assert "<foresight_solution_candidates>" in context
     assert "在调用 Skill、Bash、TaskCreate 或其他行动工具前" in context
     assert "如果候选可能对当前任务有帮助" in context
     assert "打开只读取知识，不会执行实际操作" in context
@@ -107,7 +107,7 @@ def test_recall_hook_formats_solution_candidates_without_approach(monkeypatch) -
 
 def test_client_recall_sends_types_and_solution_detail() -> None:
     captured = {}
-    client = HindsightClient("http://api.test", "hsk_test-key")
+    client = ForesightClient("http://api.test", "hsk_test-key")
 
     def fake_request(method, path, body=None, timeout=10):
         captured["method"] = method
@@ -135,7 +135,7 @@ def test_client_recall_sends_types_and_solution_detail() -> None:
 
 def test_client_upsert_document_uses_canonical_document_endpoint() -> None:
     captured = {}
-    client = HindsightClient("http://api.test", "hsk_test-key")
+    client = ForesightClient("http://api.test", "hsk_test-key")
 
     def fake_request(method, path, body=None, timeout=10):
         captured["method"] = method
@@ -167,7 +167,7 @@ def test_client_upsert_document_uses_canonical_document_endpoint() -> None:
 
 def test_client_get_solution_sends_agent_detail() -> None:
     captured = {}
-    client = HindsightClient("http://api.test", "hsk_test-key")
+    client = ForesightClient("http://api.test", "hsk_test-key")
 
     def fake_request(method, path, body=None, timeout=10):
         captured["method"] = method
@@ -184,7 +184,7 @@ def test_client_get_solution_sends_agent_detail() -> None:
 
 def test_client_get_center_solution_sends_agent_detail() -> None:
     captured = {}
-    client = HindsightClient("http://api.test", "hsk_test-key")
+    client = ForesightClient("http://api.test", "hsk_test-key")
 
     def fake_request(method, path, body=None, timeout=10):
         captured["method"] = method
@@ -249,7 +249,7 @@ def _load_mcp_server_with_fake_dependencies(monkeypatch):
                     "failure_modes": ["do not skip field discovery"],
                     "skill_refs": ["mquantum-report"],
                     "evidence": "validated by prior trajectory",
-                    "hindsight_episodes": "SHOULD NOT LEAK",
+                    "internal_episodes": "SHOULD NOT LEAK",
                 },
                 "source_document_ids": ["internal-doc-id"],
                 "content_hash": "internal-hash",
@@ -266,7 +266,7 @@ def _load_mcp_server_with_fake_dependencies(monkeypatch):
                 "id": kwargs["solution_id"],
                 "organization_slug": kwargs["organization_slug"],
                 "approach": "center methodology",
-                "metadata": {"hindsight_episodes": "SHOULD NOT LEAK"},
+                "metadata": {"internal_episodes": "SHOULD NOT LEAK"},
             }
 
     monkeypatch.setattr(
@@ -274,14 +274,14 @@ def _load_mcp_server_with_fake_dependencies(monkeypatch):
         "load_config",
         lambda: {
             "enableKnowledgeTools": True,
-            "hindsightApiUrl": "http://api.test",
-            "hindsightApiKey": "hsk_test-key",
+            "foresightApiUrl": "http://api.test",
+            "foresightApiKey": "hsk_test-key",
         },
     )
     monkeypatch.setattr(lib.config, "debug_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(lib.connection, "get_api_url", lambda *args, **kwargs: "http://api.test")
     monkeypatch.setattr(lib.bank, "derive_bank_id", lambda *args, **kwargs: "default-bank")
-    monkeypatch.setattr(lib.client, "HindsightClient", FakeClient)
+    monkeypatch.setattr(lib.client, "ForesightClient", FakeClient)
 
     module_path = SCRIPT_DIR / "mcp_server.py"
     spec = importlib.util.spec_from_file_location("mcp_server_under_test", module_path)
@@ -339,7 +339,7 @@ def test_mcp_open_solution_by_title_routes_personal_space(monkeypatch) -> None:
         "skill_refs": ["mquantum-report"],
         "evidence": "validated by prior trajectory",
     }
-    assert "hindsight_episodes" not in json.dumps(result)
+    assert "internal_episodes" not in json.dumps(result)
     assert "source_document_ids" not in result
     assert "content_hash" not in result
     assert fake_client.calls[-1] == (
@@ -403,7 +403,7 @@ def test_mcp_open_solution_by_title_routes_center_candidate(monkeypatch) -> None
 
     assert result["approach"] == "center methodology"
     assert result["metadata"] == {}
-    assert "hindsight_episodes" not in json.dumps(result)
+    assert "internal_episodes" not in json.dumps(result)
     assert fake_client.calls[-1] == (
         "get_center_solution",
         {"solution_id": "solution-center", "organization_slug": "ad-ops", "detail": "agent", "timeout": 10},
@@ -529,13 +529,6 @@ def test_retain_keeps_opened_solutions_until_final_snapshot(monkeypatch, tmp_pat
     states = {OPENED_SOLUTIONS_STATE: {"sessions": {"session-1": [opened_record]}}}
     config = {
         "autoRetain": True,
-        "retainMode": "full-session",
-        "retainEveryNTurns": 1,
-        "retainRoles": ["user", "assistant"],
-        "retainToolCalls": True,
-        "retainTags": [],
-        "retainMetadata": {},
-        "retainContext": "claude-code",
         "requestTimeoutSeconds": 10,
     }
 
@@ -544,7 +537,7 @@ def test_retain_keeps_opened_solutions_until_final_snapshot(monkeypatch, tmp_pat
     monkeypatch.setattr(retain, "get_api_url", lambda *args, **kwargs: "http://api.test")
     monkeypatch.setattr(retain, "derive_bank_id", lambda *args, **kwargs: "bank-a")
     monkeypatch.setattr(retain, "ensure_bank_mission", lambda *args, **kwargs: None)
-    monkeypatch.setattr(retain, "HindsightClient", FakeClient)
+    monkeypatch.setattr(retain, "ForesightClient", FakeClient)
     monkeypatch.setattr(retain, "track_retention", lambda *args, **kwargs: (0, False))
     monkeypatch.setattr(retain, "mark_session_retained", lambda *args, **kwargs: None)
     monkeypatch.setattr(retain, "read_state", lambda name, default=None: states.get(name, default))
@@ -570,8 +563,8 @@ def test_retain_keeps_opened_solutions_until_final_snapshot(monkeypatch, tmp_pat
             "transcript_path": str(transcript_path),
             "cwd": str(tmp_path),
         },
-        force=True,
+        final=True,
     )
 
-    assert captured["process_now"] is True
+    assert captured["process_now"] is False
     assert states[OPENED_SOLUTIONS_STATE] == {"sessions": {}}

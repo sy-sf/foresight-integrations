@@ -1,6 +1,6 @@
 """Configuration management for the Foresight Claude Code plugin.
 
-Loads plugin defaults, stable user configuration, and environment overrides.
+Loads built-in defaults, stable user configuration, and environment overrides.
 """
 
 import json
@@ -22,17 +22,9 @@ DEFAULTS = {
     ),
     # Retain
     "autoRetain": True,
-    "retainMode": "full-session",
-    "retainRoles": ["user", "assistant"],
-    "retainEveryNTurns": 10,
-    "retainOverlapTurns": 2,
-    "retainToolCalls": False,
-    "retainContext": "claude-code",
-    "retainTags": [],
-    "retainMetadata": {},
     # Connection
-    "hindsightApiUrl": None,
-    "hindsightApiKey": None,
+    "foresightApiUrl": None,
+    "foresightApiKey": None,
     "requestTimeoutSeconds": None,
     # Personal knowledge
     "personalKnowledgeMission": "",
@@ -44,19 +36,18 @@ DEFAULTS = {
 
 # Map env var names to config keys and their types
 ENV_OVERRIDES = {
-    "HINDSIGHT_API_URL": ("hindsightApiUrl", str),
-    "HINDSIGHT_API_KEY": ("hindsightApiKey", str),
-    "HINDSIGHT_AUTO_RECALL": ("autoRecall", bool),
-    "HINDSIGHT_AUTO_RETAIN": ("autoRetain", bool),
-    "HINDSIGHT_RETAIN_MODE": ("retainMode", str),
-    "HINDSIGHT_RECALL_BUDGET": ("recallBudget", str),
-    "HINDSIGHT_RECALL_SOLUTION_DETAIL": ("recallSolutionDetail", str),
-    "HINDSIGHT_RECALL_MAX_TOKENS": ("recallMaxTokens", int),
-    "HINDSIGHT_RECALL_MAX_QUERY_CHARS": ("recallMaxQueryChars", int),
-    "HINDSIGHT_RECALL_CONTEXT_TURNS": ("recallContextTurns", int),
-    "HINDSIGHT_REQUEST_TIMEOUT_SECONDS": ("requestTimeoutSeconds", int),
-    "HINDSIGHT_PERSONAL_KNOWLEDGE_MISSION": ("personalKnowledgeMission", str),
-    "HINDSIGHT_DEBUG": ("debug", bool),
+    "FORESIGHT_API_URL": ("foresightApiUrl", str),
+    "FORESIGHT_API_KEY": ("foresightApiKey", str),
+    "FORESIGHT_AUTO_RECALL": ("autoRecall", bool),
+    "FORESIGHT_AUTO_RETAIN": ("autoRetain", bool),
+    "FORESIGHT_RECALL_BUDGET": ("recallBudget", str),
+    "FORESIGHT_RECALL_SOLUTION_DETAIL": ("recallSolutionDetail", str),
+    "FORESIGHT_RECALL_MAX_TOKENS": ("recallMaxTokens", int),
+    "FORESIGHT_RECALL_MAX_QUERY_CHARS": ("recallMaxQueryChars", int),
+    "FORESIGHT_RECALL_CONTEXT_TURNS": ("recallContextTurns", int),
+    "FORESIGHT_REQUEST_TIMEOUT_SECONDS": ("requestTimeoutSeconds", int),
+    "FORESIGHT_PERSONAL_KNOWLEDGE_MISSION": ("personalKnowledgeMission", str),
+    "FORESIGHT_DEBUG": ("debug", bool),
 }
 
 
@@ -72,8 +63,8 @@ def _cast_env(value: str, typ):
         return None
 
 
-def _load_settings_file(path: str, config: dict) -> None:
-    """Merge a settings.json file into config in-place. Silently skips if missing."""
+def _load_config_file(path: str, config: dict) -> None:
+    """Merge a JSON configuration file in-place. Silently skip if missing."""
     if not os.path.exists(path):
         return
     try:
@@ -85,29 +76,22 @@ def _load_settings_file(path: str, config: dict) -> None:
 
 
 def load_config() -> dict:
-    """Load plugin configuration from settings.json + env overrides.
+    """Load plugin configuration from user settings and env overrides.
 
     Loading order (later entries win):
       1. Built-in defaults
-      2. Plugin default settings.json  (CLAUDE_PLUGIN_ROOT/settings.json)
-      3. User config                   (~/.hindsight/claude-code.json)
-      4. Environment variable overrides
+      2. User config (~/.foresight/claude-code.json)
+      3. Environment variable overrides
 
-    ~/.hindsight/claude-code.json is the recommended place to configure the
+    ~/.foresight/claude-code.json is the recommended place to configure the
     plugin — same convention as ~/.openclaw/openclaw.json. It is stable across
     plugin updates and marketplace changes.
     """
     config = dict(DEFAULTS)
 
-    # 1. Plugin default settings.json (ships with the plugin, version-specific path)
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-    if not plugin_root:
-        plugin_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    _load_settings_file(os.path.join(plugin_root, "settings.json"), config)
-
-    # 2. User config — stable, version-independent, matches openclaw convention
-    user_config_path = os.path.join(os.path.expanduser("~"), ".hindsight", "claude-code.json")
-    _load_settings_file(user_config_path, config)
+    # User config — stable and version-independent.
+    user_config_path = os.path.join(os.path.expanduser("~"), ".foresight", "claude-code.json")
+    _load_config_file(user_config_path, config)
 
     # Apply environment variable overrides
     for env_name, (key, typ) in ENV_OVERRIDES.items():

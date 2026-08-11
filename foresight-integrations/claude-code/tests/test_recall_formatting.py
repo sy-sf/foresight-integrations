@@ -43,8 +43,8 @@ def test_format_recall_context_includes_facts_and_solution_candidates_without_ap
 
     context = format_recall_context("preamble", "2026-06-23 10:00 UTC", memories, candidates)
 
-    assert "<hindsight_memories>" in context
-    assert "<hindsight_solution_candidates>" in context
+    assert "<foresight_memories>" in context
+    assert "<foresight_solution_candidates>" in context
     assert "量子平台消耗字段是 cost。" in context
     assert "Foresight Solution 使用协议：" in context
     assert "在调用 Skill、Bash、TaskCreate 或其他行动工具前" in context
@@ -73,8 +73,8 @@ def test_format_recall_context_allows_only_solution_candidates() -> None:
         format_solution_candidates([_solution_candidate()]),
     )
 
-    assert "<hindsight_memories>" not in context
-    assert "<hindsight_solution_candidates>" in context
+    assert "<foresight_memories>" not in context
+    assert "<foresight_solution_candidates>" in context
     assert "MQuantum root-cause analysis" in context
     assert "solution-1" not in context
     assert "FULL APPROACH SHOULD NOT BE INJECTED" not in context
@@ -89,7 +89,7 @@ def test_format_recall_context_allows_only_facts() -> None:
     )
 
     assert "Existing fact" in context
-    assert "<hindsight_solution_candidates>" not in context
+    assert "<foresight_solution_candidates>" not in context
 
 
 def test_format_recall_context_allows_empty_results() -> None:
@@ -116,7 +116,7 @@ def test_format_solution_candidates_skips_invalid_items_and_uses_task_descriptio
         ]
     )
 
-    assert "<hindsight_solution_candidates>" in formatted
+    assert "<foresight_solution_candidates>" in formatted
     assert "description: 调试 Solution 召回。" in formatted
     assert "帮我调试 Solution 召回" not in formatted
 
@@ -124,12 +124,12 @@ def test_format_solution_candidates_skips_invalid_items_and_uses_task_descriptio
 def test_strip_memory_tags_removes_solution_candidate_blocks() -> None:
     content = (
         "before\n"
-        "<hindsight_solution_protocol>\n"
+        "<foresight_solution_protocol>\n"
         "solution loading protocol\n"
-        "</hindsight_solution_protocol>\n"
-        "<hindsight_solution_candidates>\n"
+        "</foresight_solution_protocol>\n"
+        "<foresight_solution_candidates>\n"
         "agent_knowledge_open_solution(title=\"Example\")\n"
-        "</hindsight_solution_candidates>\n"
+        "</foresight_solution_candidates>\n"
         "after"
     )
 

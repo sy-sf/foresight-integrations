@@ -27,7 +27,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from lib.bank import derive_bank_id, ensure_bank_mission
-from lib.client import HindsightClient
+from lib.client import ForesightClient
 from lib.config import debug_log, load_config
 from lib.connection import get_api_url
 from lib.content import (
@@ -115,9 +115,9 @@ def main():
         print(f"[Foresight] {e}", file=sys.stderr)
         return
 
-    api_key = config.get("hindsightApiKey")
+    api_key = config.get("foresightApiKey")
     try:
-        client = HindsightClient(
+        client = ForesightClient(
             api_url,
             api_key,
             request_timeout_override=config.get("requestTimeoutSeconds"),

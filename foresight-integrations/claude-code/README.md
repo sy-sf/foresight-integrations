@@ -11,7 +11,7 @@ The hosted Foresight service is:
 https://daytonaio.39on.com
 ```
 
-The plugin does not start a local Hindsight service. Foresight's personal
+The plugin does not start a local service. Foresight's personal
 knowledge, document snapshot, and solution APIs require a compatible deployed
 Foresight backend and a personal `hsk_` API key issued by that same backend.
 
@@ -106,28 +106,26 @@ scope answers “where do this URL and key apply?” They do not have to be the 
 Settings are loaded in this order, with later values winning:
 
 1. Built-in defaults
-2. Plugin `settings.json`
-3. `~/.hindsight/claude-code.json`
-4. Environment variables, including Claude project `env` settings
+2. `~/.foresight/claude-code.json`
+3. Environment variables, including Claude project `env` settings
+
+The plugin does not ship a second copy of its defaults in `settings.json`.
 
 ### Global connection for all projects
 
-Create or merge `~/.hindsight/claude-code.json`:
+Create or merge `~/.foresight/claude-code.json`:
 
 ```json
 {
-  "hindsightApiUrl": "https://daytonaio.39on.com",
-  "hindsightApiKey": "hsk_replace_with_your_key",
-  "autoRecall": true,
-  "autoRetain": true,
-  "enableKnowledgeTools": true
+  "foresightApiUrl": "https://daytonaio.39on.com",
+  "foresightApiKey": "hsk_replace_with_your_key"
 }
 ```
 
 Protect the file on Unix-like systems:
 
 ```bash
-chmod 600 ~/.hindsight/claude-code.json
+chmod 600 ~/.foresight/claude-code.json
 ```
 
 This is the recommended pairing with a user-scope plugin installation.
@@ -139,8 +137,8 @@ Create or merge `.claude/settings.local.json` in the project:
 ```json
 {
   "env": {
-    "HINDSIGHT_API_URL": "https://daytonaio.39on.com",
-    "HINDSIGHT_API_KEY": "hsk_replace_with_your_key"
+    "FORESIGHT_API_URL": "https://daytonaio.39on.com",
+    "FORESIGHT_API_KEY": "hsk_replace_with_your_key"
   }
 }
 ```
@@ -156,13 +154,13 @@ A team may commit only the non-secret URL in `.claude/settings.json`:
 ```json
 {
   "env": {
-    "HINDSIGHT_API_URL": "https://daytonaio.39on.com"
+    "FORESIGHT_API_URL": "https://daytonaio.39on.com"
   }
 }
 ```
 
 Each collaborator then stores their personal key in
-`~/.hindsight/claude-code.json` or their own `.claude/settings.local.json`.
+`~/.foresight/claude-code.json` or their own `.claude/settings.local.json`.
 
 ## 5. Verify
 
@@ -197,8 +195,11 @@ visible before background knowledge distillation completes.
   solution-loading protocol.
 - `UserPromptSubmit` recalls observations and lightweight solution candidates.
 - Claude can call `agent_knowledge_open_solution` to load a full methodology.
-- `Stop` periodically upserts the complete structured session snapshot.
-- `SessionEnd` sends a final idempotent snapshot with immediate processing.
+- Every `Stop` upserts the latest complete structured session snapshot.
+- `SessionEnd` sends a final idempotent snapshot without bypassing the server's
+  idle window.
+- Each changed snapshot resets server-side idle processing; knowledge extraction
+  starts only after the configured idle period passes without another update.
 - Opened solutions are attached to trajectory metadata so Foresight can learn
   which methodologies were actually used.
 
@@ -209,16 +210,28 @@ does not expose configurable Bank IDs or project/session-specific Banks.
 
 | Setting | Environment variable | Default | Purpose |
 | --- | --- | --- | --- |
-| `hindsightApiUrl` | `HINDSIGHT_API_URL` | required | Foresight API base URL |
-| `hindsightApiKey` | `HINDSIGHT_API_KEY` | required | Personal `hsk_` API key |
-| `autoRecall` | `HINDSIGHT_AUTO_RECALL` | `true` | Recall before user prompts |
-| `autoRetain` | `HINDSIGHT_AUTO_RETAIN` | `true` | Persist session snapshots |
-| `recallBudget` | `HINDSIGHT_RECALL_BUDGET` | `mid` | Recall effort/latency tradeoff |
-| `recallMaxTokens` | `HINDSIGHT_RECALL_MAX_TOKENS` | `1024` | Recall token budget |
-| `recallSolutionDetail` | `HINDSIGHT_RECALL_SOLUTION_DETAIL` | `candidate` | Auto-recall solution projection |
-| `requestTimeoutSeconds` | `HINDSIGHT_REQUEST_TIMEOUT_SECONDS` | per operation | HTTP timeout override |
-| `personalKnowledgeMission` | `HINDSIGHT_PERSONAL_KNOWLEDGE_MISSION` | empty | Optional knowledge mission |
-| `debug` | `HINDSIGHT_DEBUG` | `false` | Verbose `[Foresight]` logs |
+| `foresightApiUrl` | `FORESIGHT_API_URL` | required | Foresight API base URL |
+| `foresightApiKey` | `FORESIGHT_API_KEY` | required | Personal `hsk_` API key |
+| `autoRecall` | `FORESIGHT_AUTO_RECALL` | `true` | Recall before user prompts |
+| `autoRetain` | `FORESIGHT_AUTO_RETAIN` | `true` | Persist session snapshots |
+| `recallBudget` | `FORESIGHT_RECALL_BUDGET` | `mid` | Recall effort/latency tradeoff |
+| `recallMaxTokens` | `FORESIGHT_RECALL_MAX_TOKENS` | `1024` | Recall token budget |
+| `recallTypes` | — | `["observation", "solution"]` | Knowledge types included in automatic recall |
+| `recallSolutionDetail` | `FORESIGHT_RECALL_SOLUTION_DETAIL` | `candidate` | Auto-recall solution projection |
+| `recallContextTurns` | `FORESIGHT_RECALL_CONTEXT_TURNS` | `1` | Number of recent user turns used to compose the recall query |
+| `recallMaxQueryChars` | `FORESIGHT_RECALL_MAX_QUERY_CHARS` | `800` | Maximum recall-query length |
+| `recallRoles` | — | `["user", "assistant"]` | Roles included when multi-turn recall is enabled |
+| `recallPromptPreamble` | — | built-in Chinese prompt | Text placed before recalled knowledge |
+| `requestTimeoutSeconds` | `FORESIGHT_REQUEST_TIMEOUT_SECONDS` | per operation | HTTP timeout override |
+| `personalKnowledgeMission` | `FORESIGHT_PERSONAL_KNOWLEDGE_MISSION` | empty | Optional knowledge mission |
+| `retainMission` | — | unset | Optional extraction mission, applied with `personalKnowledgeMission` |
+| `enableKnowledgeTools` | — | `true` | Expose Foresight MCP knowledge and solution tools |
+| `debug` | `FORESIGHT_DEBUG` | `false` | Verbose `[Foresight]` logs |
+
+Only `foresightApiUrl` and `foresightApiKey` are required user configuration.
+All other settings are optional overrides of built-in defaults. Session snapshot
+cadence, chunking, tags, context, and processing timing are implementation or
+server concerns and are intentionally not configurable by this plugin.
 
 ## Update
 
@@ -247,11 +260,11 @@ authenticated user's Foresight knowledge space.
   https://github.com/sy-sf/foresight-integrations.git HEAD`.
 - **MCP server missing:** update the marketplace and plugin, then restart Claude
   Code. `plugin details` must show one `foresight` MCP server.
-- **Missing URL:** configure `hindsightApiUrl` or `HINDSIGHT_API_URL`.
+- **Missing URL:** configure `foresightApiUrl` or `FORESIGHT_API_URL`.
 - **Authentication failure:** create a current `hsk_` key on the same server as
   the configured URL.
 - **No retained data:** complete a response and exit Claude normally; set
-  `HINDSIGHT_DEBUG=true` and inspect `[Foresight]` hook errors.
+  `FORESIGHT_DEBUG=true` and inspect `[Foresight]` hook errors.
 - **No recalled knowledge:** first confirm retention, then allow the backend
   worker to finish processing the submitted document.
 - **Old upstream plugin also installed:** disable or uninstall it to avoid

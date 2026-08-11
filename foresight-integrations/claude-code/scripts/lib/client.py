@@ -42,7 +42,7 @@ def _validate_api_url(url: str) -> str:
     return url.rstrip("/")
 
 
-class HindsightClient:
+class ForesightClient:
     """HTTP client for the Foresight API."""
 
     def __init__(
@@ -55,7 +55,7 @@ class HindsightClient:
         normalized_api_key = (api_key or "").strip()
         if not normalized_api_key:
             raise ValueError(
-                "Foresight API key is required. Create a personal API key and set hindsightApiKey or HINDSIGHT_API_KEY."
+                "Foresight API key is required. Create a personal API key and set foresightApiKey or FORESIGHT_API_KEY."
             )
         if not normalized_api_key.startswith("hsk_"):
             raise ValueError("Foresight credential must be a long-lived hsk_ API key")

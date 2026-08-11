@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Launched via scripts/run_mcp.sh which execs the venv's interpreter, so
 # `mcp` and friends resolve from ${CLAUDE_PLUGIN_DATA}/venv/site-packages.
 from lib.bank import derive_bank_id
-from lib.client import HindsightClient
+from lib.client import ForesightClient
 from lib.config import debug_log, load_config
 from lib.connection import get_api_url
 from lib.solution_candidates import (
@@ -63,9 +63,9 @@ if not _config.get("enableKnowledgeTools"):
 
 try:
     _api_url = get_api_url(_config, debug_fn=_dbg, allow_daemon_start=True)
-    _client = HindsightClient(
+    _client = ForesightClient(
         _api_url,
-        _config.get("hindsightApiKey"),
+        _config.get("foresightApiKey"),
         request_timeout_override=_config.get("requestTimeoutSeconds"),
     )
 except Exception as e:
@@ -250,7 +250,7 @@ def _project_agent_solution(solution: dict[str, Any]) -> dict[str, Any]:
 
 @mcp.tool()
 def agent_knowledge_open_solution(title: str) -> str:
-    """Open a full solution methodology by the exact title shown in <hindsight_solution_candidates>."""
+    """Open a full solution methodology by the exact title shown in <foresight_solution_candidates>."""
     normalized_title = normalize_solution_title(title)
     if not normalized_title:
         return json.dumps({"error": "必须提供 title"}, ensure_ascii=False, indent=2)
