@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "foresight",
+  "description": "Official Foresight integrations for Claude Code",
+  "owner": {
+    "name": "Foresight Team"
+  },
+  "plugins": [
+    {
+      "name": "foresight-memory",
+      "description": "Trajectory collection and reusable knowledge for Claude Code via Foresight",
+      "source": "./foresight-integrations/claude-code"
+    }
+  ]
+}

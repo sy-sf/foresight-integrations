@@ -1,0 +1,8 @@
+{
+  "name": "foresight-memory",
+  "description": "Trajectory collection and reusable knowledge for Claude Code via Foresight. Recalls distilled knowledge before each prompt, retains session snapshots, and provides knowledge tools.",
+  "version": "1.0.0",
+  "author": {"name": "Foresight Team"},
+  "license": "MIT",
+  "keywords": ["memory", "foresight", "trajectory", "recall", "retain"]
+}
